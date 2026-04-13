@@ -1,0 +1,70 @@
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  # Формує назву виду: username/repository-name
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # Надаємо необхідні права для пушу в GitHub Container Registry
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Отримуємо метадані (NAME:TAG) для образу на основі Git refs (branch, tags, sha)
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Тег по назві гілки (наприклад, ghcr.io/user/repo:main)
+            type=ref,event=branch
+            # Тег по номеру PR (наприклад, ghcr.io/user/repo:pr-2)
+            type=ref,event=pr
+            # Semantic Versioning (наприклад, ghcr.io/user/repo:v0.0.1)
+            type=semver,pattern={{version}}
+            # Короткий SHA коміту (наприклад, ghcr.io/user/repo:sha-ad132f5)
+            type=sha
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # Пушимо тільки якщо це push (не PR)
+          push: ${{ github.event_name != 'pull_request' }}
+          # Беремо згенеровані теги з попереднього кроку {{NAME}}:{{TAG}}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Використовуємо кеш GitHub Actions для пришвидшення білдів
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
