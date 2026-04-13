@@ -1,35 +1,35 @@
 # ==========================================
 # Stage 1: Builder
 # ==========================================
-FROM ubuntu AS builder
+FROM golang AS builder
 
 WORKDIR /src
 
-RUN apt-get update && \
-    apt-get install -y \
-    git nasm build-essential
+COPY ./src .
 
-    RUN git clone https://github.com/den-vasyliev/asmhttpd.git && \
-    cd asmhttpd && make
+RUN go mod init devops-types && \
+    CGO_ENABLED=0 go build -o app
 
 # ==========================================
 # Stage 2: Final
 # ==========================================
 FROM scratch
 
-RUN addgroup -S webserver && \
-    adduser -S webserver -G webserver
+# RUN addgroup -S webserver && \
+#     adduser -S webserver -G webserver
 
-WORKDIR /html
+WORKDIR /
 
 ADD ./html /html
 
-COPY --from=builder /src/asmhttpd/asmhttpd /
+COPY --from=builder /src/app /
+
+ENTRYPOINT ["/app"]
+
+# USER webserver
 
 EXPOSE 8080
 
-USER webserver
 
-ENTRYPOINT ["/asmhttpd", "/html"]
 
 

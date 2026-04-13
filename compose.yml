@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: devops-types:v0.0.1
+    image: pervent/devops-types:v0.0.1
     container_name: devops-types
     ports:
       - "8080:8080"
